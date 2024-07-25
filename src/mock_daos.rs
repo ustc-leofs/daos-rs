@@ -45,7 +45,9 @@ pub unsafe fn daos_array_open_with_attr(
     let new_handle = daos_handle_t { cookie: oid.lo };
 
     // Store the OID in the storage
-    storage.insert(oid, Vec::new());
+    if !storage.contains_key(&oid) {
+        storage.insert(oid, Vec::new());
+    }
 
     // Set the output parameter
     if !oh.is_null() {

@@ -108,15 +108,24 @@ pub unsafe fn daos_array_write(
 
     if let Some(data) = storage.get_mut(&obj_id) {
         // Clear existing data
-        data.clear();
+        // data.clear();
 
         let sgl = *sgl;
         let iovs = sgl.sg_iovs;
+        let arr_rgs = (*iod).arr_rgs;
         for i in 0..sgl.sg_nr {
             let iov = *iovs.add(i as usize);
+            let rg = arr_rgs.add(i as usize);
             // println!("[debug] iov: {:?}", iov);
             let buf = std::slice::from_raw_parts(iov.iov_buf as *const u8, iov.iov_len);
-            data.extend_from_slice(buf);
+            let offset = (*rg).rg_idx as usize;
+            let array_size = (*rg).rg_len as usize;
+            let len = array_size + offset;
+            if data.len() < len {
+                data.resize(len, 0);
+            }
+            let (left, right) = data.split_at_mut(offset);
+            right[0..buf.len()].copy_from_slice(buf);
         }
 
         println!("[mock] oid {:?} -> new data {:?}", obj_id, data.get(2));

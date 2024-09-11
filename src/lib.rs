@@ -3,7 +3,14 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 
-pub mod bindings;
+include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+
 pub mod mock_daos;
 
-pub use bindings::*;
+use std::hash::{Hash, Hasher};
+
+#[test]
+fn test() {
+    println!("HelloWorld!");
+    println!("{}", DAOS_API_VERSION_MINOR);
+}

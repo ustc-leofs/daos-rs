@@ -10,6 +10,26 @@ use crate::{
     daos_range_t, daos_size_t,
 };
 use once_cell::sync::Lazy;
+use std::cmp::PartialEq;
+
+impl Hash for daos_obj_id_t {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        // 使用结构体的字段进行哈希计算
+        self.lo.hash(state);
+        self.hi.hash(state);
+    }
+}
+
+// 手动实现 PartialEq
+impl PartialEq for daos_obj_id_t {
+    fn eq(&self, other: &Self) -> bool {
+        // 自定义的比较逻辑：这里我们简单比较 lo 和 hi 字段是否相等
+        self.lo == other.lo && self.hi == other.hi
+    }
+}
+
+// 实现 Eq（只要 PartialEq 实现了，Eq 是空的，不需要额外逻辑）
+impl Eq for daos_obj_id_t {}
 
 // Memory storage structure for storing OID and data
 type Storage = Arc<Mutex<HashMap<daos_obj_id_t, Vec<u8>>>>;

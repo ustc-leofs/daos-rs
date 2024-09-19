@@ -5,9 +5,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use crate::{
-    d_iov_t, d_sg_list_t, daos_anchor_t, daos_array_iod_t, daos_epoch_t, daos_event_t,
-    daos_handle_t, daos_obj_id_t, daos_oclass_hints_t, daos_oclass_id_t, daos_off_t, daos_otype_t,
-    daos_range_t, daos_size_t,
+    d_iov_t, d_sg_list_t, daos_anchor_t, daos_array_iod_t, daos_cont_info_t, daos_epoch_range_t,
+    daos_epoch_t, daos_event_t, daos_handle_t, daos_obj_id_t, daos_oclass_hints_t,
+    daos_oclass_id_t, daos_off_t, daos_otype_t, daos_pool_info_t, daos_range_t, daos_size_t,
+    daos_snapshot_opts,
 };
 use once_cell::sync::Lazy;
 
@@ -227,5 +228,65 @@ pub unsafe fn daos_oit_open(
         coh, epoch, oh, ev
     );
     // Example: Open OIT (may require additional operations in actual implementation)
+    0
+}
+
+pub unsafe fn daos_init() -> c_int {
+    0
+}
+
+pub unsafe fn daos_pool_connect2(
+    pool: *const c_char,
+    sys: *const c_char,
+    flags: c_uint,
+    poh: *mut daos_handle_t,
+    info: *mut daos_pool_info_t,
+    ev: *mut daos_event_t,
+) -> c_int {
+    0
+}
+
+pub fn daos_cont_open2(
+    poh: daos_handle_t,
+    cont: *const c_char,
+    flags: c_uint,
+    coh: *mut daos_handle_t,
+    info: *mut daos_cont_info_t,
+    ev: *mut daos_event_t,
+) -> c_int {
+    0
+}
+
+pub fn daos_cont_destroy_snap(
+    coh: daos_handle_t,
+    epr: daos_epoch_range_t,
+    ev: *mut daos_event_t,
+) -> c_int {
+    0
+}
+
+pub fn daos_cont_create_snap_opt(
+    coh: daos_handle_t,
+    epoch: *mut daos_epoch_t,
+    name: *mut c_char,
+    opts: daos_snapshot_opts,
+    ev: *mut daos_event_t,
+) -> c_int {
+    0
+}
+
+pub fn daos_cont_close(coh: daos_handle_t, ev: *mut daos_event_t) -> c_int {
+    0
+}
+
+pub fn daos_pool_disconnect(poh: daos_handle_t, ev: *mut daos_event_t) -> c_int {
+    0
+}
+
+pub fn daos_fini() -> c_int {
+    0
+}
+
+pub fn daos_array_destroy(oh: daos_handle_t, th: daos_handle_t, ev: *mut daos_event_t) -> c_int {
     0
 }

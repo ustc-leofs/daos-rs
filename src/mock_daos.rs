@@ -166,6 +166,15 @@ pub unsafe fn daos_obj_generate_oid2(
     0
 }
 
+pub unsafe fn daos_array_punch(
+    oh: daos_handle_t,
+    th: daos_handle_t,
+    iod: *mut daos_array_iod_t,
+    ev: *mut daos_event_t,
+) -> ::std::os::raw::c_int {
+    0
+}
+
 pub unsafe fn daos_obj_punch(
     oh: daos_handle_t,
     th: daos_handle_t,

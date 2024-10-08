@@ -5,12 +5,20 @@
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
-pub mod mock_daos;
+mod mock_daos;
+use std::ptr::null_mut;
 
-use std::hash::{Hash, Hasher};
+#[cfg(feature = "mock")]
+pub use mock_daos::*;
 
 #[test]
 fn test() {
     println!("HelloWorld!");
     println!("{}", DAOS_API_VERSION_MINOR);
+    #[cfg(feature = "mock")]
+    unsafe {
+        let x = daos_handle_t { cookie: 0 };
+        daos_array_close(x, null_mut());
+        mock_test();
+    }
 }

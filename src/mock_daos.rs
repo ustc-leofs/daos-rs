@@ -12,6 +12,8 @@ use crate::{
 use once_cell::sync::Lazy;
 use std::cmp::PartialEq;
 
+pub const DAOS_API_VERSION_MINOR: u32 = 999; // 覆盖 bindings.rs 中的同名常量
+
 impl Hash for daos_obj_id_t {
     fn hash<H: Hasher>(&self, state: &mut H) {
         // 使用结构体的字段进行哈希计算
@@ -38,7 +40,7 @@ static STORAGE: Lazy<Storage> = Lazy::new(|| Arc::new(Mutex::new(HashMap::new())
 // Global counter
 static HANDLE_COUNTER: AtomicU64 = AtomicU64::new(123);
 
-pub unsafe fn daos_array_close(oh: daos_handle_t, ev: *mut daos_event_t) -> c_int {
+pub unsafe fn daos_array_close(oh: daos_handle_t, ev: *mut daos_event_t) -> ::std::os::raw::c_int {
     let mut storage = STORAGE.lock().unwrap();
     // Assuming `oh.cookie` is the `u64` part of `daos_obj_id_t`
     let obj_id = daos_obj_id_t {
@@ -248,4 +250,8 @@ pub unsafe fn daos_oit_open(
     );
     // Example: Open OIT (may require additional operations in actual implementation)
     0
+}
+
+pub fn mock_test() {
+    println!("mock test");
 }

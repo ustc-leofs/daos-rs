@@ -5,9 +5,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use crate::{
-    d_iov_t, d_sg_list_t, daos_anchor_t, daos_array_iod_t, daos_epoch_t, daos_event_t,
-    daos_handle_t, daos_obj_id_t, daos_oclass_hints_t, daos_oclass_id_t, daos_off_t, daos_otype_t,
-    daos_range_t, daos_size_t,
+    d_iov_t, d_sg_list_t, daos_anchor_t, daos_array_iod_t, daos_cont_info_t, daos_epoch_range_t,
+    daos_epoch_t, daos_event_t, daos_handle_t, daos_obj_id_t, daos_oclass_hints_t,
+    daos_oclass_id_t, daos_off_t, daos_otype_t, daos_pool_info_t, daos_range_t, daos_size_t,
+    daos_snapshot_opts,
 };
 use once_cell::sync::Lazy;
 use std::cmp::PartialEq;
@@ -187,6 +188,15 @@ pub unsafe fn daos_obj_generate_oid2(
     0
 }
 
+pub unsafe fn daos_array_punch(
+    oh: daos_handle_t,
+    th: daos_handle_t,
+    iod: *mut daos_array_iod_t,
+    ev: *mut daos_event_t,
+) -> ::std::os::raw::c_int {
+    0
+}
+
 pub unsafe fn daos_obj_punch(
     oh: daos_handle_t,
     th: daos_handle_t,
@@ -252,6 +262,62 @@ pub unsafe fn daos_oit_open(
     0
 }
 
-pub fn mock_test() {
-    println!("mock test");
+pub unsafe fn daos_init() -> c_int {
+    0
+}
+
+pub unsafe fn daos_pool_connect2(
+    pool: *const c_char,
+    sys: *const c_char,
+    flags: c_uint,
+    poh: *mut daos_handle_t,
+    info: *mut daos_pool_info_t,
+    ev: *mut daos_event_t,
+) -> c_int {
+    0
+}
+
+pub fn daos_cont_open2(
+    poh: daos_handle_t,
+    cont: *const c_char,
+    flags: c_uint,
+    coh: *mut daos_handle_t,
+    info: *mut daos_cont_info_t,
+    ev: *mut daos_event_t,
+) -> c_int {
+    0
+}
+
+pub fn daos_cont_destroy_snap(
+    coh: daos_handle_t,
+    epr: daos_epoch_range_t,
+    ev: *mut daos_event_t,
+) -> c_int {
+    0
+}
+
+pub fn daos_cont_create_snap_opt(
+    coh: daos_handle_t,
+    epoch: *mut daos_epoch_t,
+    name: *mut c_char,
+    opts: daos_snapshot_opts,
+    ev: *mut daos_event_t,
+) -> c_int {
+    0
+}
+
+pub fn daos_cont_close(coh: daos_handle_t, ev: *mut daos_event_t) -> c_int {
+    0
+}
+
+pub fn daos_pool_disconnect(poh: daos_handle_t, ev: *mut daos_event_t) -> c_int {
+    0
+}
+
+pub fn daos_fini() -> c_int {
+    0
+}
+
+pub fn daos_array_destroy(oh: daos_handle_t, th: daos_handle_t, ev: *mut daos_event_t) -> c_int {
+    0
 }

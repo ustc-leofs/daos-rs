@@ -2,9 +2,17 @@
 name = "daos-rs"
 version = "0.1.0"
 edition = "2021"
+build = "build.rs"
 
 [lib]
 name = "daos"
 
 [dependencies]
 once_cell = "1.19.0"
+
+[build-dependencies]
+bindgen = "0.70.1"
+
+[features]
+default = []
+mock = []

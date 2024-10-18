@@ -321,3 +321,41 @@ pub fn daos_fini() -> c_int {
 pub fn daos_array_destroy(oh: daos_handle_t, th: daos_handle_t, ev: *mut daos_event_t) -> c_int {
     0
 }
+
+pub fn daos_array_set_size(
+    oh: daos_handle_t,
+    th: daos_handle_t,
+    size: daos_size_t,
+    ev: *mut daos_event_t,
+) -> c_int {
+    let mut storage = STORAGE.lock().unwrap();
+    // Assuming `oh.cookie` is the `u64` part of `daos_obj_id_t`
+    let obj_id = daos_obj_id_t {
+        lo: oh.cookie,
+        hi: 0,
+    };
+
+    if let Some(data) = storage.get_mut(&obj_id) {
+        data.resize(size as usize, 0);
+    }
+    0
+}
+
+pub fn daos_array_get_size(
+    oh: daos_handle_t,
+    th: daos_handle_t,
+    size: *mut daos_size_t,
+    ev: *mut daos_event_t,
+) -> c_int {
+    let mut storage = STORAGE.lock().unwrap();
+    // Assuming `oh.cookie` is the `u64` part of `daos_obj_id_t`
+    let obj_id = daos_obj_id_t {
+        lo: oh.cookie,
+        hi: 0,
+    };
+
+    if let Some(data) = storage.get(&obj_id) {
+        unsafe { *size = data.len() as u64 };
+    }
+    0
+}

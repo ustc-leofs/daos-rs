@@ -359,3 +359,7 @@ pub fn daos_array_get_size(
     }
     0
 }
+
+pub fn daos_eq_lib_reset_after_fork() -> ::std::os::raw::c_int {
+    0
+}

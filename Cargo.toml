@@ -9,6 +9,7 @@ name = "daos"
 
 [dependencies]
 once_cell = "1.19.0"
+log = "0.4"
 
 [build-dependencies]
 bindgen = "0.70.1"

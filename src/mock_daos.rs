@@ -4,6 +4,8 @@ use std::os::raw::{c_char, c_int, c_uint, c_ulong};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
+use log::info;
+
 use crate::{
     d_iov_t, d_sg_list_t, daos_anchor_t, daos_array_iod_t, daos_cont_info_t, daos_epoch_range_t,
     daos_epoch_t, daos_event_t, daos_handle_t, daos_obj_id_t, daos_oclass_hints_t,
@@ -48,7 +50,7 @@ pub unsafe fn daos_array_close(oh: daos_handle_t, ev: *mut daos_event_t) -> ::st
         lo: oh.cookie,
         hi: 0,
     };
-    println!("[mock] close {:?}", obj_id);
+    info!("[mock] close {:?}", obj_id);
     0
 }
 
@@ -77,7 +79,7 @@ pub unsafe fn daos_array_open_with_attr(
         *oh = new_handle;
     }
 
-    println!("[mock] open/create oid {:?}", oid);
+    info!("[mock] open/create oid {:?}", oid);
     0
 }
 
@@ -102,7 +104,7 @@ pub unsafe fn daos_array_read(
 
     for i in 0..sgl.sg_nr {
         let mut iov = *iovs.add(i as usize);
-        // println!("[debug] iov: {:?}", iov);
+        // debug!("iov: {:?}", iov);
         let buf = std::slice::from_raw_parts_mut(iov.iov_buf as *mut u8, iov.iov_len);
         // Copy data into `buf`
         let len_to_copy = std::cmp::min(iov.iov_len, data.len() - data_offset);
@@ -111,7 +113,7 @@ pub unsafe fn daos_array_read(
         // Update `iov_len` to the actual length written
         iov.iov_len = len_to_copy;
     }
-    println!("[mock] oid {:?} -> get data {:?}", obj_id, data.get(2));
+    info!("[mock] oid {:?} -> get data {:?}", obj_id, data.get(2));
     0
 }
 
@@ -139,7 +141,7 @@ pub unsafe fn daos_array_write(
         for i in 0..sgl.sg_nr {
             let iov = *iovs.add(i as usize);
             let rg = arr_rgs.add(i as usize);
-            // println!("[debug] iov: {:?}", iov);
+            // debug!("iov: {:?}", iov);
             let buf = std::slice::from_raw_parts(iov.iov_buf as *const u8, iov.iov_len);
             let offset = (*rg).rg_idx as usize;
             let array_size = (*rg).rg_len as usize;
@@ -151,10 +153,10 @@ pub unsafe fn daos_array_write(
             right[0..buf.len()].copy_from_slice(buf);
         }
 
-        println!("[mock] oid {:?} -> new data {:?}", obj_id, data.get(2));
+        info!("[mock] oid {:?} -> new data {:?}", obj_id, data.get(2));
         0
     } else {
-        println!("daos_array_write failed: handle not found");
+        info!("daos_array_write failed: handle not found");
         -1
     }
 }
@@ -183,7 +185,7 @@ pub unsafe fn daos_obj_generate_oid2(
             lo: new_handle_value,
             hi: 0,
         };
-        println!("[mock] new oid {:?}", *oid);
+        info!("[mock] new oid {:?}", *oid);
     }
     0
 }
@@ -209,7 +211,7 @@ pub unsafe fn daos_obj_punch(
         hi: 0,
     };
     storage.remove(&obj_id);
-    println!("[mock] delete oid {:?}", obj_id);
+    info!("[mock] delete oid {:?}", obj_id);
     0
 }
 
@@ -219,7 +221,7 @@ pub unsafe fn daos_cont_create_snap(
     name: *mut c_char,
     ev: *mut daos_event_t,
 ) -> c_int {
-    println!(
+    info!(
         "daos_cont_create_snap called with coh: {:?}, epoch: {:?}, name: {:?}, ev: {:?}",
         coh, epoch, name, ev
     );
@@ -228,7 +230,7 @@ pub unsafe fn daos_cont_create_snap(
 }
 
 pub unsafe fn daos_oit_close(oh: daos_handle_t, ev: *mut daos_event_t) -> c_int {
-    println!("daos_oit_close called with oh: {:?}, ev: {:?}", oh, ev);
+    info!("daos_oit_close called with oh: {:?}, ev: {:?}", oh, ev);
     // Example: Close OIT (may require additional operations in actual implementation)
     0
 }
@@ -240,7 +242,7 @@ pub unsafe fn daos_oit_list(
     anchor: *mut daos_anchor_t,
     ev: *mut daos_event_t,
 ) -> c_int {
-    println!(
+    info!(
         "daos_oit_list called with oh: {:?}, oids: {:?}, oids_nr: {:?}, anchor: {:?}, ev: {:?}",
         oh, oids, oids_nr, anchor, ev
     );
@@ -254,7 +256,7 @@ pub unsafe fn daos_oit_open(
     oh: *mut daos_handle_t,
     ev: *mut daos_event_t,
 ) -> c_int {
-    println!(
+    info!(
         "daos_oit_open called with coh: {:?}, epoch: {}, oh: {:?}, ev: {:?}",
         coh, epoch, oh, ev
     );

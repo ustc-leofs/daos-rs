@@ -41,6 +41,8 @@ impl Eq for daos_obj_id_t {}
 
 use std::fs;
 use std::fs::{File, OpenOptions};
+use std::io::Seek;
+use std::io::SeekFrom;
 use std::io::{Read, Write};
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
@@ -63,14 +65,18 @@ fn get_and_increment(file_path: &str) -> std::io::Result<u64> {
         .open(&path)?;
 
     // 尝试读取文件中的数值
-    let mut contents = String::new();
-    file.read_to_string(&mut contents)?;
-    num = contents.trim().parse().unwrap_or(0);
+    let mut contents = vec![];
+    file.read_to_end(&mut contents)?;
 
+    // 过滤掉 \0 并解析数字
+    let valid_str = String::from_utf8_lossy(&contents).replace('\0', "");
+    num = valid_str.trim().parse().unwrap_or(0);
     num += 1;
 
-    // 将新的数值写回文件
-    file.set_len(0)?; // 清空文件内容
+    // 关键步骤：重置文件指针
+    file.seek(SeekFrom::Start(0))?;
+    file.set_len(0)?;
+
     file.write_all(num.to_string().as_bytes())?;
     file.flush()?;
 

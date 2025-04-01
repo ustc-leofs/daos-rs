@@ -39,16 +39,42 @@ impl Eq for daos_obj_id_t {}
 
 // Memory storage structure for storing OID and data
 
-use std::fs::{self, File, OpenOptions};
-use std::io::{Read, Seek, SeekFrom, Write};
-use std::os::unix::fs::FileExt;
+use std::fs;
+use std::fs::{File, OpenOptions};
+use std::io::{Read, Write};
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
-
-static HANDLE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 pub struct Storage {
     path: String,
+    counter_path: String,
     file_lock: Mutex<()>,
+}
+
+fn get_and_increment(file_path: &str) -> std::io::Result<u64> {
+    let path = Path::new(file_path);
+    let mut num = 0;
+
+    // 打开文件并加锁
+    let mut file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(&path)?;
+
+    // 尝试读取文件中的数值
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)?;
+    num = contents.trim().parse().unwrap_or(0);
+
+    num += 1;
+
+    // 将新的数值写回文件
+    file.set_len(0)?; // 清空文件内容
+    file.write_all(num.to_string().as_bytes())?;
+    file.flush()?;
+
+    Ok(num)
 }
 
 impl Storage {
@@ -57,24 +83,17 @@ impl Storage {
         let storage_path = tmp_path.display().to_string();
         info!("mock storage_path: {:?}", &storage_path);
         fs::create_dir_all(&storage_path).expect("Failed to create storage directory");
-
-        let max_id = fs::read_dir(&storage_path)
-            .unwrap()
-            .filter_map(|entry| entry.ok())
-            .filter_map(|entry| entry.file_name().into_string().ok())
-            .filter_map(|name| {
-                info!("name: {:?}", name);
-                name.parse::<u64>().ok()
-            })
-            .max()
-            .unwrap_or(0);
-
-        HANDLE_COUNTER.store(max_id + 1, Ordering::SeqCst);
-
+        let counter_path = tmp_path.join("counter").display().to_string();
+        get_and_increment(&counter_path).unwrap();
         Storage {
             path: storage_path,
             file_lock: Mutex::new(()),
+            counter_path,
         }
+    }
+
+    pub fn get_newid(&self) -> u64 {
+        get_and_increment(&self.counter_path).unwrap()
     }
 
     pub fn get(&self, oid: &daos_obj_id_t) -> Option<Vec<u8>> {
@@ -268,9 +287,9 @@ pub unsafe fn daos_obj_generate_oid2(
     args: u32,
 ) -> c_int {
     // Example: Generate a mock OID
-    let _store = STORAGE.lock().unwrap();
+    let store = STORAGE.lock().unwrap();
     if !oid.is_null() {
-        let new_handle_value = HANDLE_COUNTER.fetch_add(1, Ordering::SeqCst);
+        let new_handle_value = store.get_newid();
         *oid = daos_obj_id_t {
             lo: new_handle_value,
             hi: 0,

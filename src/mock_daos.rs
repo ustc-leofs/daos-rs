@@ -1,16 +1,17 @@
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::os::raw::{c_char, c_int, c_uint, c_ulong};
+use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use log::info;
 
 use crate::{
-    d_iov_t, d_sg_list_t, daos_anchor_t, daos_array_iod_t, daos_cont_info_t, daos_epoch_range_t,
-    daos_epoch_t, daos_event_t, daos_handle_t, daos_obj_id_t, daos_oclass_hints_t,
-    daos_oclass_id_t, daos_off_t, daos_otype_t, daos_pool_info_t, daos_range_t, daos_size_t,
-    daos_snapshot_opts,
+    d_iov_t, d_rank_list_t, d_sg_list_t, daos_anchor_t, daos_array_iod_t, daos_cont_info_t,
+    daos_epoch_range_t, daos_epoch_t, daos_event, daos_event_t, daos_handle_t, daos_obj_id_t,
+    daos_oclass_hints_t, daos_oclass_id_t, daos_off_t, daos_otype_t, daos_pool_info_t, daos_prop_t,
+    daos_range_t, daos_size_t, daos_snapshot_opts,
 };
 use once_cell::sync::Lazy;
 use std::cmp::PartialEq;
@@ -37,11 +38,77 @@ impl PartialEq for daos_obj_id_t {
 impl Eq for daos_obj_id_t {}
 
 // Memory storage structure for storing OID and data
-type Storage = Arc<Mutex<HashMap<daos_obj_id_t, Vec<u8>>>>;
-static STORAGE: Lazy<Storage> = Lazy::new(|| Arc::new(Mutex::new(HashMap::new())));
 
-// Global counter
-static HANDLE_COUNTER: AtomicU64 = AtomicU64::new(123);
+use std::fs::{self, File, OpenOptions};
+use std::io::{Read, Seek, SeekFrom, Write};
+use std::os::unix::fs::FileExt;
+use std::path::Path;
+
+static HANDLE_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+pub struct Storage {
+    path: String,
+    file_lock: Mutex<()>,
+}
+
+impl Storage {
+    pub fn new() -> Storage {
+        let tmp_path = Path::new(std::env::temp_dir().as_path()).join("daos_mock_storage");
+        let storage_path = tmp_path.display().to_string();
+        info!("mock storage_path: {:?}", &storage_path);
+        fs::create_dir_all(&storage_path).expect("Failed to create storage directory");
+
+        let max_id = fs::read_dir(&storage_path)
+            .unwrap()
+            .filter_map(|entry| entry.ok())
+            .filter_map(|entry| entry.file_name().into_string().ok())
+            .filter_map(|name| {
+                info!("name: {:?}", name);
+                name.parse::<u64>().ok()
+            })
+            .max()
+            .unwrap_or(0);
+
+        HANDLE_COUNTER.store(max_id + 1, Ordering::SeqCst);
+
+        Storage {
+            path: storage_path,
+            file_lock: Mutex::new(()),
+        }
+    }
+
+    pub fn get(&self, oid: &daos_obj_id_t) -> Option<Vec<u8>> {
+        let file_path = format!("{}/{}", self.path, oid.lo);
+        let file = File::open(&file_path).ok()?;
+        let mut buffer = Vec::new();
+        file.take(u64::MAX).read_to_end(&mut buffer).ok()?;
+        Some(buffer)
+    }
+
+    pub fn contains(&self, oid: &daos_obj_id_t) -> bool {
+        let file_path = format!("{}/{}", self.path, oid.lo);
+        Path::new(&file_path).exists()
+    }
+
+    pub fn insert(&self, oid: daos_obj_id_t, data: Vec<u8>) {
+        let _lock = self.file_lock.lock().unwrap();
+        let file_path = format!("{}/{}", self.path, oid.lo);
+        let mut file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .open(&file_path)
+            .unwrap();
+        file.write_all(&data).unwrap();
+    }
+
+    pub fn remove(&self, oid: &daos_obj_id_t) {
+        let _lock = self.file_lock.lock().unwrap();
+        let file_path = format!("{}/{}", self.path, oid.lo);
+        let _ = fs::remove_file(file_path);
+    }
+}
+
+static STORAGE: Lazy<Arc<Mutex<Storage>>> = Lazy::new(|| Arc::new(Mutex::new(Storage::new())));
 
 pub unsafe fn daos_array_close(oh: daos_handle_t, ev: *mut daos_event_t) -> ::std::os::raw::c_int {
     let mut storage = STORAGE.lock().unwrap();
@@ -70,7 +137,7 @@ pub unsafe fn daos_array_open_with_attr(
     let new_handle = daos_handle_t { cookie: oid.lo };
 
     // Store the OID in the storage
-    if !storage.contains_key(&oid) {
+    if !storage.contains(&oid) {
         storage.insert(oid, Vec::new());
     }
 
@@ -97,7 +164,7 @@ pub unsafe fn daos_array_read(
         hi: 0,
     };
     let binding = Vec::new();
-    let data = storage.get(&obj_id).unwrap_or(&binding);
+    let data = storage.get(&obj_id).unwrap_or(binding);
     let sgl = *sgl;
     let iovs = sgl.sg_iovs;
     let mut data_offset = 0; // To track the position in `data`
@@ -109,6 +176,7 @@ pub unsafe fn daos_array_read(
         // Copy data into `buf`
         let len_to_copy = std::cmp::min(iov.iov_len, data.len() - data_offset);
         buf[..len_to_copy].copy_from_slice(&data[data_offset..data_offset + len_to_copy]);
+        (*iod).arr_nr_read += len_to_copy as u64;
         data_offset += len_to_copy;
         // Update `iov_len` to the actual length written
         iov.iov_len = len_to_copy;
@@ -131,9 +199,10 @@ pub unsafe fn daos_array_write(
         hi: 0,
     };
 
-    if let Some(data) = storage.get_mut(&obj_id) {
+    if let Some(data) = storage.get(&obj_id) {
         // Clear existing data
         // data.clear();
+        let mut data = data.clone();
 
         let sgl = *sgl;
         let iovs = sgl.sg_iovs;
@@ -152,8 +221,9 @@ pub unsafe fn daos_array_write(
             let (left, right) = data.split_at_mut(offset);
             right[0..buf.len()].copy_from_slice(buf);
         }
-
         info!("[mock] oid {:?} -> new data {:?}", obj_id, data.get(2));
+        storage.insert(obj_id, data);
+
         0
     } else {
         info!("daos_array_write failed: handle not found");
@@ -170,6 +240,25 @@ pub unsafe fn daos_cont_alloc_oids(
     0
 }
 
+pub unsafe fn daos_cont_query(
+    coh: daos_handle_t,
+    info: *mut daos_cont_info_t,
+    cont_prop: *mut daos_prop_t,
+    ev: *mut daos_event_t,
+) -> ::std::os::raw::c_int {
+    0
+}
+
+pub unsafe fn daos_pool_query(
+    poh: daos_handle_t,
+    ranks: *mut *mut d_rank_list_t,
+    info: *mut daos_pool_info_t,
+    pool_prop: *mut daos_prop_t,
+    ev: *mut daos_event_t,
+) -> ::std::os::raw::c_int {
+    0
+}
+
 pub unsafe fn daos_obj_generate_oid2(
     coh: daos_handle_t,
     oid: *mut daos_obj_id_t,
@@ -179,6 +268,7 @@ pub unsafe fn daos_obj_generate_oid2(
     args: u32,
 ) -> c_int {
     // Example: Generate a mock OID
+    let _store = STORAGE.lock().unwrap();
     if !oid.is_null() {
         let new_handle_value = HANDLE_COUNTER.fetch_add(1, Ordering::SeqCst);
         *oid = daos_obj_id_t {
@@ -279,7 +369,7 @@ pub unsafe fn daos_pool_connect2(
     0
 }
 
-pub fn daos_cont_open2(
+pub unsafe fn daos_cont_open2(
     poh: daos_handle_t,
     cont: *const c_char,
     flags: c_uint,
@@ -290,7 +380,7 @@ pub fn daos_cont_open2(
     0
 }
 
-pub fn daos_cont_destroy_snap(
+pub unsafe fn daos_cont_destroy_snap(
     coh: daos_handle_t,
     epr: daos_epoch_range_t,
     ev: *mut daos_event_t,
@@ -298,7 +388,7 @@ pub fn daos_cont_destroy_snap(
     0
 }
 
-pub fn daos_cont_create_snap_opt(
+pub unsafe fn daos_cont_create_snap_opt(
     coh: daos_handle_t,
     epoch: *mut daos_epoch_t,
     name: *mut c_char,
@@ -308,23 +398,34 @@ pub fn daos_cont_create_snap_opt(
     0
 }
 
-pub fn daos_cont_close(coh: daos_handle_t, ev: *mut daos_event_t) -> c_int {
+pub unsafe fn daos_cont_close(coh: daos_handle_t, ev: *mut daos_event_t) -> c_int {
     0
 }
 
-pub fn daos_pool_disconnect(poh: daos_handle_t, ev: *mut daos_event_t) -> c_int {
+pub unsafe fn daos_pool_disconnect(poh: daos_handle_t, ev: *mut daos_event_t) -> c_int {
     0
 }
 
-pub fn daos_fini() -> c_int {
+pub unsafe fn daos_fini() -> c_int {
     0
 }
 
-pub fn daos_array_destroy(oh: daos_handle_t, th: daos_handle_t, ev: *mut daos_event_t) -> c_int {
+pub unsafe fn daos_array_destroy(
+    oh: daos_handle_t,
+    th: daos_handle_t,
+    ev: *mut daos_event_t,
+) -> c_int {
+    let mut storage = STORAGE.lock().unwrap();
+    let obj_id = daos_obj_id_t {
+        lo: oh.cookie,
+        hi: 0,
+    };
+    storage.remove(&obj_id);
+    info!("[mock] delete oid {:?}", obj_id);
     0
 }
 
-pub fn daos_array_set_size(
+pub unsafe fn daos_array_set_size(
     oh: daos_handle_t,
     th: daos_handle_t,
     size: daos_size_t,
@@ -337,13 +438,15 @@ pub fn daos_array_set_size(
         hi: 0,
     };
 
-    if let Some(data) = storage.get_mut(&obj_id) {
+    if let Some(data) = storage.get(&obj_id) {
+        let mut data = data.clone();
         data.resize(size as usize, 0);
+        storage.insert(obj_id, data.clone());
     }
     0
 }
 
-pub fn daos_array_get_size(
+pub unsafe fn daos_array_get_size(
     oh: daos_handle_t,
     th: daos_handle_t,
     size: *mut daos_size_t,
@@ -362,6 +465,42 @@ pub fn daos_array_get_size(
     0
 }
 
-pub fn daos_eq_lib_reset_after_fork() -> ::std::os::raw::c_int {
+pub unsafe fn daos_eq_lib_reset_after_fork() -> ::std::os::raw::c_int {
     0
+}
+
+pub unsafe fn daos_eq_create(eqh: *mut daos_handle_t) -> ::std::os::raw::c_int {
+    0
+}
+
+pub unsafe fn daos_eq_destroy(
+    eqh: daos_handle_t,
+    flags: ::std::os::raw::c_int,
+) -> ::std::os::raw::c_int {
+    0
+}
+
+pub unsafe fn daos_event_fini(ev: *mut daos_event_t) -> ::std::os::raw::c_int {
+    0
+}
+
+pub unsafe fn daos_event_test(
+    ev: *mut daos_event,
+    timeout: i64,
+    flag: *mut bool,
+) -> ::std::os::raw::c_int {
+    *flag = true;
+    0
+}
+
+pub unsafe fn daos_event_init(
+    ev: *mut daos_event_t,
+    eqh: daos_handle_t,
+    parent: *mut daos_event_t,
+) -> ::std::os::raw::c_int {
+    0
+}
+
+pub unsafe fn mock_test() {
+    println!("mock_test");
 }

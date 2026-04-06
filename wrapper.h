@@ -22,6 +22,7 @@
 #include <daos_types.h>
 #include <daos_uns.h>
 #include <daos_version.h>
+#include <daos_hybrid.h>
 
 int daos_eq_lib_reset_after_fork(void);
 

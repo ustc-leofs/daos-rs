@@ -3,6 +3,12 @@ name = "daos-rs"
 version = "0.1.0"
 edition = "2021"
 build = "build.rs"
+description = "Rust bindings for the DAOS C API with optional mock mode."
+license = "GPL-3.0-only"
+repository = "https://github.com/ustc-leofs/daos-rs"
+readme = "README.md"
+keywords = ["daos", "bindings", "storage"]
+categories = ["api-bindings"]
 
 [lib]
 name = "daos"

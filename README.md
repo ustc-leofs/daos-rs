@@ -1,38 +1,38 @@
 # daos-rs
 
-`daos-rs` 是 DAOS C API 的 Rust 绑定封装，提供两种构建模式：
+`daos-rs` provides Rust bindings for the DAOS C API with two build modes:
 
-1. 默认模式（不启用 `mock`）：在构建阶段通过 `bindgen` 基于 `wrapper.h` 生成 `bindings.rs`，并链接系统中的 `daos` 动态库。
-2. `mock` 模式：使用仓库内置的 `src/bindings.rs` 和 `src/mock_daos.rs`，不依赖本地安装 DAOS，可用于本地测试与开发联调。
+1. Default mode (without `mock`): generates `bindings.rs` from `wrapper.h` via `bindgen` during build, and links against the system `daos` library.
+2. `mock` mode: uses the in-repo `src/bindings.rs` and `src/mock_daos.rs`, so it can be built and tested without a local DAOS installation.
 
-## 依赖
+## Requirements
 
 - Rust 2021
-- `bindgen`（构建依赖）
-- 默认模式下需要系统可用的 DAOS 头文件与 `libdaos`
+- `bindgen` (build dependency)
+- In default mode, DAOS headers and `libdaos` must be available on the system
 
-## 使用方式
+## Usage
 
-作为依赖引入时（包名 `daos-rs`，库名 `daos`）：
+Use it as a dependency (`package = "daos-rs"`, library name `daos`):
 
 ```toml
 [dependencies]
 daos = { package = "daos-rs", version = "0.1.0" }
 ```
 
-启用 mock：
+Enable `mock`:
 
 ```toml
 [dependencies]
 daos = { package = "daos-rs", version = "0.1.0", features = ["mock"] }
 ```
 
-命令行构建示例：
+Build examples:
 
 ```bash
-# 默认模式（需要本地 DAOS 环境）
+# Default mode (requires local DAOS environment)
 cargo build
 
-# mock 模式（无 DAOS 环境也可构建）
+# Mock mode (builds without local DAOS)
 cargo build --features mock
 ```
